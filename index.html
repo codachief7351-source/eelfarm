@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장어 양식 대시보드</title>
+<style>
+:root{
+  --bg:#f5f7f6; --card:#fff; --ink:#1d2b26; --muted:#64746e; --line:#dde5e1;
+  --brand:#1f6f5c; --brand-soft:#e3f1ec; --warn:#b26a00; --warn-soft:#fff3dc;
+  --bad:#b3261e; --bad-soft:#fde7e5; --ok:#1f7a3a; --ok-soft:#e5f4ea;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#121816;--card:#1a2220;--ink:#e3ece8;--muted:#93a49d;--line:#2c3834;
+  --brand:#5cc3a5;--brand-soft:#1e3330;--warn:#f0b04a;--warn-soft:#3a2e17;
+  --bad:#f28b82;--bad-soft:#3b1f1d;--ok:#7fd29a;--ok-soft:#1c3324;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+header{padding:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;max-width:1200px;margin:auto}
+h1{font-size:20px;margin:0}
+h2{font-size:16px;margin:0 0 12px}
+main{max-width:1200px;margin:auto;padding:0 16px 40px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;overflow:hidden}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .l{color:var(--muted);font-size:12px}
+.kpi .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .s{color:var(--muted);font-size:12px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tfoot td{font-weight:700}
+input,select{font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%;min-width:60px}
+input[type=number]{text-align:right}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px}
+button.p{background:var(--brand);border-color:var(--brand);color:#fff}
+button.x{border:none;background:none;color:var(--muted);padding:2px 6px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.row label{display:grid;gap:2px;font-size:12px;color:var(--muted)}
+.alerts{display:grid;gap:8px}
+.al{border-radius:10px;padding:10px 12px;border:1px solid}
+.al.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.al.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+.al.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.al b{display:block}
+.al span{color:var(--ink);font-size:13px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+.badge.bad{background:var(--bad-soft);color:var(--bad)}.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+ul.adv{margin:0;padding-left:18px}ul.adv li{margin:4px 0}
+.muted{color:var(--muted);font-size:12px}
+details summary{cursor:pointer;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>🐟 장어 양식 대시보드</h1><div class="muted" id="today"></div></div>
+  <div class="row">
+    <button onclick="enableNotify()">🔔 브라우저 알림 켜기</button>
+    <button onclick="exportJSON()">백업 저장</button>
+    <button onclick="document.getElementById('imp').click()">백업 불러오기</button>
+    <input type="file" id="imp" accept=".json" hidden onchange="importJSON(this)">
+  </div>
+</header>
+
+<main>
+  <!-- 알림 -->
+  <section class="alerts" id="alerts"></section>
+
+  <!-- KPI -->
+  <section class="kpis" id="kpis"></section>
+
+  <!-- #1 사육현황 -->
+  <section class="card">
+    <h2>① 장어 사육현황</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>수조</th><th>입식일</th><th class="n">마리수</th><th class="n">평균체중(g)</th><th class="n">총중량(kg)</th><th>사료</th><th class="n">급이율(%)</th><th class="n">1일 급이량(kg)</th><th>메모</th><th></th></tr></thead>
+      <tbody id="tankBody"></tbody>
+      <tfoot id="tankFoot"></tfoot>
+    </table></div>
+    <div class="row" style="margin-top:8px"><button class="p" onclick="addTank()">+ 수조 추가</button>
+    <span class="muted">급이율을 비워두면 평균체중·수온으로 자동 계산됩니다.</span></div>
+  </section>
+
+  <!-- #2 사료 재고 -->
+  <section class="card">
+    <h2>② 사료 재고 · 주문 알림</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>사료</th><th class="n">실사재고(kg)</th><th>실사일</th><th class="n">입고 합계</th><th class="n">1일 사용</th><th class="n">현재 추정재고</th><th>남은 일수</th><th class="n">배송(영업일)</th><th class="n">안전일수</th><th class="n">포대(kg)</th><th>주문 권장일</th><th></th></tr></thead>
+      <tbody id="feedBody"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:8px">
+      <button onclick="addFeed()">+ 사료 추가</button>
+      <label>주문 시 확보 일수<input type="number" id="coverDays" style="width:80px" onchange="setCfg('coverDays',+this.value)"></label>
+      <label style="flex-direction:row;display:flex;gap:6px;align-items:center"><input type="checkbox" id="satOk" style="width:auto" onchange="setCfg('satDelivery',this.checked)">토요일 배송 가능</label>
+    </div>
+
+    <h2 style="margin-top:20px">사료 입고 등록</h2>
+    <div class="row">
+      <label>입고일<input type="date" id="rcDate"></label>
+      <label>사료<select id="rcFeed"></select></label>
+      <label>입고량(kg)<input type="number" id="rcKg" style="width:110px"></label>
+      <label>메모<input id="rcMemo" style="width:160px"></label>
+      <button class="p" onclick="addReceipt()">입고 등록</button>
+    </div>
+    <details style="margin-top:10px"><summary>입고 이력 보기</summary>
+      <div class="tbl"><table><thead><tr><th>입고일</th><th>사료</th><th class="n">입고량(kg)</th><th>메모</th><th></th></tr></thead><tbody id="rcBody"></tbody></table></div>
+    </details>
+  </section>
+
+  <div class="grid2">
+    <!-- 휴일 -->
+    <section class="card">
+      <h2>📅 휴일 (배송 불가일)</h2>
+      <div class="tbl" style="max-height:260px;overflow-y:auto"><table style="min-width:0"><thead><tr><th>날짜</th><th>휴일명</th><th></th></tr></thead><tbody id="holBody"></tbody></table></div>
+      <div class="row" style="margin-top:8px">
+        <label>날짜<input type="date" id="hDate"></label><label>이름<input id="hName" style="width:120px"></label>
+        <button onclick="addHoliday()">추가</button>
+      </div>
+      <p class="muted">일요일은 자동으로 배송 불가일로 계산합니다. 거래처 휴무일도 여기에 추가하세요.</p>
+    </section>
+
+    <!-- #3 급이 · 어드바이스 -->
+    <section class="card">
+      <h2>③ 수질 입력 · 양식 어드바이스</h2>
+      <div class="row">
+        <label>수온(℃)<input type="number" step="0.1" id="wTemp" style="width:90px"></label>
+        <label>용존산소 DO(mg/L)<input type="number" step="0.1" id="wDo" style="width:90px"></label>
+        <label>pH<input type="number" step="0.1" id="wPh" style="width:80px"></label>
+        <label>암모니아(mg/L)<input type="number" step="0.01" id="wNh3" style="width:90px"></label>
+        <label>아질산(mg/L)<input type="number" step="0.01" id="wNo2" style="width:90px"></label>
+      </div>
+      <h2 style="margin-top:14px">사료별 1일 급이량</h2>
+      <div id="feedDaily"></div>
+      <h2 style="margin-top:14px">어드바이스</h2>
+      <ul class="adv" id="advice"></ul>
+      <p class="muted">어드바이스는 일반적인 뱀장어 순환여과식 양식 기준이며, 사료회사 급이표와 현장 상황을 우선하세요.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+const KEY = 'eelfarm-dashboard-v1';
+const DAY = 86400000;
+const iso = d => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const today = parse(iso(new Date()));
+const fmt = (n, d=0) => (isFinite(n) ? n : 0).toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const md = s => { const d = parse(s); return `${d.getMonth()+1}/${d.getDate()}(${'일월화수목금토'[d.getDay()]})`; };
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+// 예시 데이터 – 실제 [새끼사료_26년10월] 표 값으로 바꿔 입력하세요.
+const DEFAULT = {
+  cfg: { coverDays: 30, satDelivery: true },
+  water: { temp: 27, do: 7, ph: 7.2, nh3: 0.3, no2: 0.1 },
+  feeds: [
+    { id:'f1', name:'새끼사료(치만용)', stock:400, checkDate:iso(today), lead:2, safety:3, bag:20 },
+    { id:'f2', name:'육성사료',        stock:800, checkDate:iso(today), lead:2, safety:3, bag:20 },
+    { id:'f3', name:'성만사료',        stock:600, checkDate:iso(today), lead:2, safety:3, bag:20 },
+  ],
+  tanks: [
+    { id:uid(), name:'1번 수조', date:'2026-08-01', count:20000, w:3,   feed:'f1', rate:'', memo:'예시' },
+    { id:uid(), name:'2번 수조', date:'2026-06-15', count:12000, w:25,  feed:'f2', rate:'', memo:'예시' },
+    { id:uid(), name:'3번 수조', date:'2026-03-10', count:5000,  w:180, feed:'f3', rate:'', memo:'예시' },
+  ],
+  receipts: [],
+  holidays: [
+    ['2026-10-09','한글날'],['2026-12-25','성탄절'],
+    ['2027-01-01','신정'],['2027-02-06','설 연휴'],['2027-02-07','설날'],['2027-02-08','설 연휴'],['2027-02-09','대체공휴일'],
+    ['2027-03-01','삼일절'],['2027-05-01','노동절'],['2027-05-05','어린이날'],['2027-05-13','부처님오신날'],
+    ['2027-06-06','현충일'],['2027-08-15','광복절'],['2027-08-16','대체공휴일'],
+    ['2027-09-14','추석 연휴'],['2027-09-15','추석'],['2027-09-16','추석 연휴'],
+    ['2027-10-03','개천절'],['2027-10-04','대체공휴일'],['2027-10-09','한글날'],['2027-10-11','대체공휴일'],
+    ['2027-12-25','성탄절'],['2027-12-27','대체공휴일'],
+  ].map(([date,name]) => ({date,name})),
+};
+
+let S;
+try { S = JSON.parse(localStorage.getItem(KEY)) || structuredClone(DEFAULT); } catch { S = structuredClone(DEFAULT); }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+const setCfg = (k, v) => { S.cfg[k] = v; save(); render(); };
+
+// ---------- 계산 ----------
+function autoRate(w, temp){
+  // 체중별 기본 급이율(%/일) – 일반 가이드
+  let r = w < 1 ? 10 : w < 5 ? 6 : w < 20 ? 4 : w < 50 ? 3 : w < 150 ? 2 : 1.5;
+  // 수온 보정 (적정 25~28℃)
+  const f = temp == null || temp === '' ? 1
+    : temp < 18 ? 0.3 : temp < 20 ? 0.5 : temp < 23 ? 0.7 : temp < 25 ? 0.85
+    : temp <= 28 ? 1 : temp <= 30 ? 0.8 : 0.5;
+  return +(r * f).toFixed(2);
+}
+const tankKg = t => (+t.count || 0) * (+t.w || 0) / 1000;
+const tankRate = t => t.rate === '' || t.rate == null ? autoRate(+t.w, S.water.temp) : +t.rate;
+const tankFeed = t => tankKg(t) * tankRate(t) / 100;
+const feedUse = id => S.tanks.filter(t => t.feed === id).reduce((a, t) => a + tankFeed(t), 0);
+const feedName = id => (S.feeds.find(f => f.id === id) || {}).name || '-';
+
+const holSet = () => new Set(S.holidays.map(h => h.date));
+function isBizDay(d, hs){
+  if (d.getDay() === 0) return false;
+  if (d.getDay() === 6 && !S.cfg.satDelivery) return false;
+  return !hs.has(iso(d));
+}
+function addBiz(d, n, hs){ let x = new Date(d); while (n > 0){ x = new Date(x.getTime() + DAY); if (isBizDay(x, hs)) n--; } return x; }
+
+function feedStatus(f){
+  const hs = holSet();
+  const recv = S.receipts.filter(r => r.feed === f.id && r.date > f.checkDate).reduce((a, r) => a + +r.kg, 0);
+  const use = feedUse(f.id);
+  const elapsed = Math.max(0, Math.round((today - parse(f.checkDate)) / DAY));
+  const est = Math.max(0, +f.stock + recv - use * elapsed);
+  const daysLeft = use > 0 ? est / use : Infinity;
+  const res = { recv, use, est, daysLeft, orderBy:null, level:'ok', holidays:[] };
+  if (!isFinite(daysLeft)) return res;
+  // 안전재고 고려, 이 날까지는 사료가 도착해야 함
+  const deliverBy = new Date(today.getTime() + Math.floor(daysLeft - f.safety) * DAY);
+  // deliverBy 이전까지 배송 가능한 가장 늦은 주문일 찾기
+  let d = new Date(deliverBy), found = null;
+  while (d >= today){
+    if (isBizDay(d, hs) && addBiz(d, +f.lead, hs) <= deliverBy){ found = d; break; }
+    d = new Date(d.getTime() - DAY);
+  }
+  res.orderBy = found;
+  const gap = found ? Math.round((found - today) / DAY) : -1;
+  res.level = gap < 0 ? 'bad' : gap <= 2 ? 'warn' : 'ok';
+  res.gap = gap;
+  const end = new Date(today.getTime() + Math.ceil(daysLeft) * DAY);
+  res.holidays = S.holidays.filter(h => { const x = parse(h.date); return x >= today && x <= end; });
+  const bags = Math.ceil(use * S.cfg.coverDays / (+f.bag || 1));
+  res.orderKg = bags * (+f.bag || 1); res.bags = bags;
+  return res;
+}
+
+// ---------- 렌더 ----------
+function render(){
+  document.getElementById('today').textContent = `오늘 ${iso(today)} (${'일월화수목금토'[today.getDay()]})`;
+  document.getElementById('coverDays').value = S.cfg.coverDays;
+  document.getElementById('satOk').checked = S.cfg.satDelivery;
+  ['temp','do','ph','nh3','no2'].forEach(k => { const el = document.getElementById('w' + k[0].toUpperCase() + k.slice(1)); if (document.activeElement !== el) el.value = S.water[k] ?? ''; });
+
+  const feedOpts = sel => S.feeds.map(f => `<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(f.name)}</option>`).join('');
+
+  // 사육현황
+  let tc = 0, tkg = 0, tfeed = 0;
+  document.getElementById('tankBody').innerHTML = S.tanks.map((t, i) => {
+    const kg = tankKg(t), fd = tankFeed(t); tc += +t.count||0; tkg += kg; tfeed += fd;
+    return `<tr>
+      <td><input value="${esc(t.name)}" onchange="upT(${i},'name',this.value)"></td>
+      <td><input type="date" value="${t.date||''}" onchange="upT(${i},'date',this.value)"></td>
+      <td><input type="number" value="${t.count}" onchange="upT(${i},'count',+this.value)"></td>
+      <td><input type="number" step="0.1" value="${t.w}" onchange="upT(${i},'w',+this.value)"></td>
+      <td class="n">${fmt(kg,1)}</td>
+      <td><select onchange="upT(${i},'feed',this.value)">${feedOpts(t.feed)}</select></td>
+      <td><input type="number" step="0.1" value="${t.rate}" placeholder="자동 ${autoRate(+t.w,S.water.temp)}" onchange="upT(${i},'rate',this.value)"></td>
+      <td class="n">${fmt(fd,2)}</td>
+      <td><input value="${esc(t.memo||'')}" onchange="upT(${i},'memo',this.value)"></td>
+      <td><button class="x" title="삭제" onclick="delT(${i})">✕</button></td></tr>`;
+  }).join('');
+  document.getElementById('tankFoot').innerHTML = `<tr><td>합계</td><td></td><td class="n">${fmt(tc)}</td><td class="n">${tc?fmt(tkg*1000/tc,1):'-'}</td><td class="n">${fmt(tkg,1)}</td><td></td><td class="n">${tkg?fmt(tfeed/tkg*100,2):'-'}</td><td class="n">${fmt(tfeed,2)}</td><td colspan="2"></td></tr>`;
+
+  // 사료
+  const st = S.feeds.map(f => [f, feedStatus(f)]);
+  document.getElementById('feedBody').innerHTML = st.map(([f, s], i) => {
+    const pct = isFinite(s.daysLeft) ? Math.min(100, s.daysLeft / 30 * 100) : 100;
+    const col = `var(--${s.level==='bad'?'bad':s.level==='warn'?'warn':'ok'})`;
+    const ob = !isFinite(s.daysLeft) ? '<span class="muted">사용 없음</span>'
+      : s.orderBy ? `<span class="badge ${s.level}">${md(iso(s.orderBy))}${s.gap===0?' 오늘':` D-${s.gap}`}</span>`
+      : `<span class="badge bad">즉시 주문</span>`;
+    return `<tr>
+      <td><input value="${esc(f.name)}" onchange="upF(${i},'name',this.value)"></td>
+      <td><input type="number" value="${f.stock}" onchange="upF(${i},'stock',+this.value)"></td>
+      <td><input type="date" value="${f.checkDate}" onchange="upF(${i},'checkDate',this.value)"></td>
+      <td class="n">${fmt(s.recv)}</td>
+      <td class="n">${fmt(s.use,1)}</td>
+      <td class="n"><b>${fmt(s.est)}</b> kg</td>
+      <td><div class="bar"><i style="width:${pct}%;background:${col}"></i></div><span class="muted">${isFinite(s.daysLeft)?fmt(s.daysLeft,1)+'일':'-'}</span></td>
+      <td><input type="number" value="${f.lead}" style="width:60px" onchange="upF(${i},'lead',+this.value)"></td>
+      <td><input type="number" value="${f.safety}" style="width:60px" onchange="upF(${i},'safety',+this.value)"></td>
+      <td><input type="number" value="${f.bag}" style="width:60px" onchange="upF(${i},'bag',+this.value)"></td>
+      <td>${ob}</td>
+      <td><button class="x" title="삭제" onclick="delF(${i})">✕</button></td></tr>`;
+  }).join('');
+  document.getElementById('rcFeed').innerHTML = feedOpts();
+  if (!document.getElementById('rcDate').value) document.getElementById('rcDate').value = iso(today);
+  document.getElementById('rcBody').innerHTML = [...S.receipts].map((r, i) => [r, i]).sort((a, b) => b[0].date.localeCompare(a[0].date))
+    .map(([r, i]) => `<tr><td>${r.date}</td><td>${esc(feedName(r.feed))}</td><td class="n">${fmt(+r.kg)}</td><td>${esc(r.memo||'')}</td><td><button class="x" onclick="delR(${i})">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="5" class="muted">입고 이력이 없습니다.</td></tr>';
+
+  // 휴일
+  const hl = [...S.holidays].map((h, i) => [h, i]).sort((a, b) => a[0].date.localeCompare(b[0].date)).filter(([h]) => h.date >= iso(new Date(today.getTime() - 30*DAY)));
+  document.getElementById('holBody').innerHTML = hl.map(([h, i]) => `<tr><td>${md(h.date)} <span class="muted">${h.date.slice(0,4)}</span></td><td>${esc(h.name)}</td><td><button class="x" onclick="delH(${i})">✕</button></td></tr>`).join('');
+
+  // KPI
+  const totalUse = S.feeds.reduce((a, f) => a + feedUse(f.id), 0);
+  const minDays = Math.min(...st.map(([, s]) => s.daysLeft));
+  document.getElementById('kpis').innerHTML = [
+    ['총 마리수', fmt(tc), '마리', `${S.tanks.length}개 수조`],
+    ['총 중량', fmt(tkg,1), 'kg', `평균 ${tc?fmt(tkg*1000/tc,1):'-'} g/마리`],
+    ['1일 총 급이량', fmt(totalUse,1), 'kg', `평균 급이율 ${tkg?fmt(totalUse/tkg*100,2):'-'}%`],
+    ['사료 재고', fmt(st.reduce((a,[,s])=>a+s.est,0)), 'kg', `가장 빠른 소진 ${isFinite(minDays)?fmt(minDays,1)+'일':'-'}`],
+    ['수온', S.water.temp ?? '-', '℃', `DO ${S.water.do ?? '-'} mg/L`],
+  ].map(([l, v, u, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v} <small style="font-size:14px">${u}</small></div><div class="s">${s}</div></div>`).join('');
+
+  // 사료별 급이량
+  document.getElementById('feedDaily').innerHTML = `<div class="tbl"><table style="min-width:0"><thead><tr><th>사료</th><th class="n">1일 급이량</th><th class="n">1주</th><th class="n">30일</th></tr></thead><tbody>${
+    S.feeds.map(f => { const u = feedUse(f.id); return `<tr><td>${esc(f.name)}</td><td class="n">${fmt(u,1)} kg</td><td class="n">${fmt(u*7)} kg</td><td class="n">${fmt(u*30)} kg</td></tr>`; }).join('')
+  }</tbody></table></div>`;
+
+  // 알림
+  const alerts = [];
+  st.forEach(([f, s]) => {
+    if (!isFinite(s.daysLeft)) return;
+    const hol = s.holidays.length ? ` 소진 전 휴일: ${s.holidays.map(h => `${h.name} ${md(h.date)}`).join(', ')}.` : '';
+    const qty = ` 권장 주문량 ${fmt(s.orderKg)}kg (${s.bags}포, ${S.cfg.coverDays}일분).`;
+    if (s.level === 'bad') alerts.push(['bad', `🚨 ${f.name} 즉시 주문 필요`, `추정재고 ${fmt(s.est)}kg, ${fmt(s.daysLeft,1)}일분 남음. 지금 주문해도 안전재고(${f.safety}일) 전에 도착하기 어렵습니다.${hol}${qty}`]);
+    else if (s.level === 'warn') alerts.push(['warn', `📦 ${f.name} 주문 시기 – ${md(iso(s.orderBy))}까지 주문`, `추정재고 ${fmt(s.est)}kg, ${fmt(s.daysLeft,1)}일분.${hol}${qty}`]);
+    else if (s.holidays.length && s.gap <= 7) alerts.push(['warn', `📅 ${f.name} 휴일 대비 – ${md(iso(s.orderBy))}까지 주문 권장`, `휴일로 배송이 밀립니다.${hol}${qty}`]);
+  });
+  const soon = S.holidays.filter(h => { const x = parse(h.date); return x >= today && x <= new Date(today.getTime() + 14*DAY); })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (soon.length) alerts.push(['warn', `📅 2주 내 휴일 ${soon.length}일`, soon.map(h => `${h.name} ${md(h.date)}`).join(' · ') + ' — 사료 주문·배송 일정을 미리 확인하세요.']);
+  if (!alerts.length) alerts.push(['ok', '✅ 주문이 필요한 사료가 없습니다', '모든 사료 재고가 충분합니다.']);
+  document.getElementById('alerts').innerHTML = alerts.map(([c, t, d]) => `<div class="al ${c}"><b>${t}</b><span>${d}</span></div>`).join('');
+  notify(alerts.filter(a => a[0] !== 'ok'));
+
+  // 어드바이스
+  document.getElementById('advice').innerHTML = advice(st, tkg, tc).map(a => `<li>${a}</li>`).join('');
+}
+
+function advice(st, tkg, tc){
+  const w = S.water, out = [];
+  const t = w.temp === '' || w.temp == null ? null : +w.temp;
+  if (t == null) out.push('수온을 입력하면 수온에 맞춘 급이율 보정과 조언을 드립니다.');
+  else if (t < 20) out.push(`🌡️ 수온 ${t}℃로 낮습니다. 섭이·소화가 떨어지므로 급이량을 크게 줄이고(자동 급이율 ${t<18?'30':'50'}% 적용), 가온을 검토하세요. 적정 수온은 25~28℃입니다.`);
+  else if (t < 25) out.push(`🌡️ 수온 ${t}℃로 적정(25~28℃)보다 낮습니다. 급이량을 줄여 잔이가 남지 않게 하고 가온 상태를 점검하세요.`);
+  else if (t <= 28) out.push(`🌡️ 수온 ${t}℃ — 성장 적정 범위입니다. 표준 급이율을 유지하세요.`);
+  else out.push(`🌡️ 수온 ${t}℃로 높습니다. 산소 소모가 늘어나므로 급이량을 줄이고 폭기를 강화하세요.`);
+  if (w.do !== '' && w.do != null){
+    if (+w.do < 4) out.push(`🫧 DO ${w.do}mg/L — 위험 수준입니다. 즉시 급이를 중단하고 산소 공급을 늘리세요.`);
+    else if (+w.do < 6) out.push(`🫧 DO ${w.do}mg/L로 다소 낮습니다. 급이 직후 산소 요구량이 급증하므로 급이 전 폭기량을 늘리고 6mg/L 이상을 유지하세요.`);
+  }
+  if (w.ph !== '' && w.ph != null && (+w.ph < 6.5 || +w.ph > 8)) out.push(`⚗️ pH ${w.ph} — 적정 범위(6.8~7.8)를 벗어났습니다. 순환여과 수조라면 탄산수소나트륨 등으로 pH를 보정하고 환수량을 점검하세요.`);
+  if (w.nh3 !== '' && w.nh3 != null && +w.nh3 > 1) out.push(`☠️ 암모니아 ${w.nh3}mg/L — 높습니다. 급이량을 줄이고 환수·여과조(바이오필터) 상태를 점검하세요.`);
+  if (w.no2 !== '' && w.no2 != null && +w.no2 > 0.5) out.push(`☠️ 아질산 ${w.no2}mg/L — 높습니다. 여과 세균 활성이 떨어졌을 수 있으니 환수하고 급이를 줄이세요.`);
+  const small = S.tanks.filter(x => +x.w < 10 && +x.count > 0);
+  if (small.length) out.push(`🐣 치만 수조(${small.map(x => esc(x.name)).join(', ')}): 하루 2~3회 나누어 급이하고, 15~20분 내 다 먹는 양으로 조절하세요. 4~6주마다 선별(크기 고르기)하면 공식(共食)과 성장 편차를 줄일 수 있습니다.`);
+  S.tanks.forEach(x => {
+    if (x.date && +x.w >= 10){
+      const days = Math.round((today - parse(x.date)) / DAY);
+      if (days > 45) out.push(`📏 ${esc(x.name)}: 입식 후 ${days}일 경과 — 선별·체중 측정을 해서 평균체중을 업데이트하세요. 급이량 정확도가 올라갑니다.`);
+    }
+  });
+  const bad = st.filter(([, s]) => s.level !== 'ok').map(([f]) => f.name);
+  if (bad.length) out.push(`📦 ${bad.join(', ')} 재고가 부족합니다. 위 알림의 주문 권장일을 확인하세요.`);
+  if (tkg) out.push(`📈 현재 총 급이량 기준, 사료효율(FCR) 1.5를 가정하면 하루 약 ${fmt(S.feeds.reduce((a,f)=>a+feedUse(f.id),0)/1.5,1)}kg 증체가 예상됩니다. 실제 증체와 비교해 FCR이 2.0을 넘으면 급이 과다·수질을 의심하세요.`);
+  out.push('🍽️ 급이 후 잔이는 30분 이내에 제거하고, 갑자기 섭이가 줄면 질병(아가미·피부 이상) 여부를 먼저 확인하세요.');
+  return out;
+}
+
+// ---------- 수정 ----------
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function upT(i, k, v){ S.tanks[i][k] = v; save(); render(); }
+function delT(i){ if (confirm(`${S.tanks[i].name} 삭제할까요?`)){ S.tanks.splice(i, 1); save(); render(); } }
+function addTank(){ S.tanks.push({ id:uid(), name:`${S.tanks.length+1}번 수조`, date:iso(today), count:0, w:0, feed:S.feeds[0]?.id, rate:'', memo:'' }); save(); render(); }
+function upF(i, k, v){ S.feeds[i][k] = v; save(); render(); }
+function delF(i){ const f = S.feeds[i]; if (S.tanks.some(t => t.feed === f.id)) return alert('이 사료를 쓰는 수조가 있어 삭제할 수 없습니다.'); if (confirm(`${f.name} 삭제할까요?`)){ S.feeds.splice(i, 1); save(); render(); } }
+function addFeed(){ S.feeds.push({ id:uid(), name:'새 사료', stock:0, checkDate:iso(today), lead:2, safety:3, bag:20 }); save(); render(); }
+function addReceipt(){
+  const date = rcDate.value, feed = rcFeed.value, kg = +rcKg.value;
+  if (!date || !feed || !(kg > 0)) return alert('입고일, 사료, 입고량을 입력하세요.');
+  const f = S.feeds.find(x => x.id === feed);
+  if (date <= f.checkDate && !confirm(`입고일이 재고 실사일(${f.checkDate}) 이전/당일이면 실사재고에 이미 포함된 것으로 보고 합산하지 않습니다. 그래도 등록할까요?`)) return;
+  S.receipts.push({ date, feed, kg, memo: rcMemo.value }); rcKg.value = ''; rcMemo.value = ''; save(); render();
+}
+function delR(i){ S.receipts.splice(i, 1); save(); render(); }
+function addHoliday(){ if (!hDate.value) return; S.holidays.push({ date:hDate.value, name:hName.value || '휴무' }); hName.value = ''; save(); render(); }
+function delH(i){ S.holidays.splice(i, 1); save(); render(); }
+['Temp','Do','Ph','Nh3','No2'].forEach(k => document.getElementById('w' + k).addEventListener('change', e => { S.water[k.toLowerCase()] = e.target.value === '' ? '' : +e.target.value; save(); render(); }));
+
+function exportJSON(){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type:'application/json' }));
+  a.download = `eelfarm-backup-${iso(today)}.json`; a.click();
+}
+function importJSON(el){
+  const r = new FileReader();
+  r.onload = () => { try { S = JSON.parse(r.result); save(); render(); alert('불러오기 완료'); } catch { alert('파일 형식이 올바르지 않습니다.'); } };
+  r.readAsText(el.files[0]); el.value = '';
+}
+
+// ---------- 브라우저 알림 ----------
+function enableNotify(){
+  if (!('Notification' in window)) return alert('이 브라우저는 알림을 지원하지 않습니다.');
+  Notification.requestPermission().then(p => { if (p === 'granted'){ sessionStorage.removeItem('eel-notified'); render(); } });
+}
+function notify(list){
+  if (!('Notification' in window) || Notification.permission !== 'granted' || !list.length) return;
+  try { if (sessionStorage.getItem('eel-notified') === iso(today)) return; sessionStorage.setItem('eel-notified', iso(today)); } catch {}
+  list.slice(0, 3).forEach(([, t, d]) => new Notification(t.replace(/^\S+\s/, ''), { body: d }));
+}
+
+render();
+</script>
+</body>
+</html>
